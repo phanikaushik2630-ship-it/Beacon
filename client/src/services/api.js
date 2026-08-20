@@ -3,7 +3,16 @@
  * Automatically attaches JWT from localStorage if available
  */
 
-const API_BASE = '/api';
+const getApiBase = () => {
+  const envUrl = import.meta.env.VITE_SERVER_URL || import.meta.env.VITE_API_URL;
+  if (envUrl && typeof envUrl === 'string' && envUrl.trim()) {
+    const cleanUrl = envUrl.trim().replace(/\/+$/, '');
+    return cleanUrl.endsWith('/api') ? cleanUrl : `${cleanUrl}/api`;
+  }
+  return '/api';
+};
+
+const API_BASE = getApiBase();
 
 export const apiRequest = async (endpoint, options = {}) => {
   const token = localStorage.getItem('beacon_token');
@@ -14,12 +23,45 @@ export const apiRequest = async (endpoint, options = {}) => {
     ...options.headers,
   };
 
-  const response = await fetch(`${API_BASE}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  let response;
+  try {
+    response = await fetch(`${API_BASE}${endpoint}`, {
+      ...options,
+      headers,
+    });
+  } catch (networkErr) {
+    console.error('[API] Network error:', networkErr);
+    const error = new Error(
+      'Unable to connect to the server. Please check your internet connection or verify the backend server is running.'
+    );
+    error.isNetworkError = true;
+    throw error;
+  }
 
-  const data = await response.json().catch(() => ({}));
+  // Check if response has JSON content type
+  const contentType = response.headers.get('content-type') || '';
+  let data = {};
+
+  if (contentType.includes('application/json')) {
+    data = await response.json().catch(() => ({}));
+  } else {
+    // If the server responded with HTML (e.g. Netlify fallback to index.html or 404/502 page)
+    const text = await response.text().catch(() => '');
+    console.warn('[API] Non-JSON response received:', text.slice(0, 200));
+
+    if (response.ok) {
+      // 200 OK with HTML usually means SPA routing caught the /api request because backend is not configured/proxied
+      const error = new Error(
+        'Backend server is not connected. If deployed on Netlify, please configure your backend URL in VITE_SERVER_URL.'
+      );
+      error.status = 200;
+      throw error;
+    } else {
+      const error = new Error(`Server returned status ${response.status} (${response.statusText || 'Error'})`);
+      error.status = response.status;
+      throw error;
+    }
+  }
 
   if (!response.ok) {
     const errorMessage =

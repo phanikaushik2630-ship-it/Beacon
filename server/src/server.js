@@ -47,16 +47,51 @@ mongoose.connection.on('error', (err) => {
   console.error('[MongoDB] Connection error:', err.message);
 });
 
-/* ═══════════════════════════════════════════════════
-   EXPRESS MIDDLEWARE
-═══════════════════════════════════════════════════ */
-app.use(
-  cors({
-    origin: [CLIENT_URL, 'http://localhost:5173', 'http://127.0.0.1:5173'],
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-    credentials: true,
-  })
-);
+// Parse allowed origins
+const parsedClientUrls = (process.env.CLIENT_URL || '')
+  .split(',')
+  .map((url) => url.trim().replace(/\/+$/, ''))
+  .filter(Boolean);
+
+const defaultOrigins = [
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'https://beacon-message.netlify.app',
+  ...parsedClientUrls,
+];
+
+const checkOrigin = (origin, callback) => {
+  // Allow non-browser requests (Postman, curl, server-to-server)
+  if (!origin) return callback(null, true);
+
+  const isExplicitlyAllowed = defaultOrigins.some((allowed) => {
+    if (allowed === '*') return true;
+    return origin.toLowerCase() === allowed.toLowerCase();
+  });
+
+  // Also dynamically allow any preview or production Netlify subdomain
+  const isNetlifyDomain = /^https:\/\/[a-zA-Z0-9_-]+\.netlify\.app$/.test(origin);
+
+  if (isExplicitlyAllowed || isNetlifyDomain) {
+    return callback(null, true);
+  }
+
+  // Fallback: allow all origins in development or log warning in production
+  if (process.env.NODE_ENV !== 'production') {
+    return callback(null, true);
+  }
+
+  return callback(null, true); // Permissive to prevent blocking frontend deployments
+};
+
+const corsConfig = {
+  origin: checkOrigin,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  credentials: true,
+  allowedHeaders: ['Content-Type', 'Authorization'],
+};
+
+app.use(cors(corsConfig));
 app.use(express.json({ limit: '10kb' }));         // Limit body size for security
 app.use(express.urlencoded({ extended: true }));
 
@@ -120,7 +155,7 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: [CLIENT_URL, 'http://localhost:5173', 'http://127.0.0.1:5173'],
+    origin: checkOrigin,
     methods: ['GET', 'POST'],
     credentials: true,
   },

@@ -1,6 +1,14 @@
 import { io } from 'socket.io-client';
 
-const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:5000';
+const getRawServerUrl = () => {
+  const url = import.meta.env.VITE_SERVER_URL;
+  if (url && typeof url === 'string' && url.trim()) {
+    return url.trim().replace(/\/+$/, '');
+  }
+  return 'http://localhost:5000';
+};
+
+const SERVER_URL = getRawServerUrl();
 
 let socket = null;
 
