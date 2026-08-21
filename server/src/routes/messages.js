@@ -102,6 +102,45 @@ router.get('/:partnerId', async (req, res) => {
 });
 
 /* ──────────────────────────────────────────────────
+   POST /api/messages/:partnerId
+   Send a direct message via HTTP REST
+────────────────────────────────────────────────── */
+router.post('/:partnerId', async (req, res) => {
+  try {
+    const { partnerId } = req.params;
+    const { content } = req.body;
+    const currentUserId = (req.user._id || req.user.id).toString();
+
+    if (!partnerId) {
+      return res.status(400).json({ success: false, error: 'Recipient ID is required.' });
+    }
+    if (!content || !content.trim()) {
+      return res.status(400).json({ success: false, error: 'Message content cannot be empty.' });
+    }
+
+    const partner = await dbUser.findById(partnerId);
+    if (!partner) {
+      return res.status(404).json({ success: false, error: 'Recipient user not found.' });
+    }
+
+    const message = await dbMessage.create({
+      sender: currentUserId,
+      receiver: partnerId,
+      content: content.trim(),
+      timestamp: new Date(),
+    });
+
+    return res.status(201).json({
+      success: true,
+      message,
+    });
+  } catch (err) {
+    console.error('[Messages] Send message REST error:', err);
+    return res.status(500).json({ success: false, error: 'Could not send message.' });
+  }
+});
+
+/* ──────────────────────────────────────────────────
    PATCH /api/messages/:partnerId/read
    Mark all messages from partnerId as read
 ────────────────────────────────────────────────── */
