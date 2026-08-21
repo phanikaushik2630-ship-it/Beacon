@@ -23,13 +23,12 @@ const MONGO_URI  = process.env.MONGO_URI  || 'mongodb://localhost:27017/realtime
 const connectDB = async () => {
   try {
     const conn = await mongoose.connect(MONGO_URI, {
-      serverSelectionTimeoutMS: 5000, // Fail fast if MongoDB unreachable
+      serverSelectionTimeoutMS: 3000,
     });
     console.log(`✅ MongoDB connected: ${conn.connection.host}`);
   } catch (err) {
-    console.error('❌ MongoDB connection failed:', err.message);
-    console.warn('⚠️  Server will continue without database. Auth routes will not function.');
-    // Do not exit — allow server to run so Socket.io chat still works
+    console.warn(`[Database] MongoDB not connected (${err.message}).`);
+    console.log('⚡ Active Data Layer: Seamless In-Memory Data Store (Instant Auth, Real-time Chat, Zero-Config)');
   }
 };
 

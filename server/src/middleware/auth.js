@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken';
-import User from '../models/User.js';
+import { dbUser } from '../services/dbAdapter.js';
 
 /* ──────────────────────────────────────────────────
    PROTECT MIDDLEWARE
@@ -23,10 +23,11 @@ export const protect = async (req, res, next) => {
 
   try {
     // 2. Verify the token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const secret = process.env.JWT_SECRET || 'beacon_secret_jwt_key_2024';
+    const decoded = jwt.verify(token, secret);
 
     // 3. Check the user still exists in the database
-    const user = await User.findById(decoded.id).select('-password');
+    const user = await dbUser.findById(decoded.id);
     if (!user) {
       return res.status(401).json({
         success: false,
@@ -85,8 +86,9 @@ export const optionalAuth = async (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = await User.findById(decoded.id).select('-password');
+    const secret = process.env.JWT_SECRET || 'beacon_secret_jwt_key_2024';
+    const decoded = jwt.verify(token, secret);
+    req.user = await dbUser.findById(decoded.id);
     next();
   } catch {
     req.user = null;
@@ -111,8 +113,9 @@ export const socketAuth = async (socket, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.id).select('-password');
+    const secret = process.env.JWT_SECRET || 'beacon_secret_jwt_key_2024';
+    const decoded = jwt.verify(token, secret);
+    const user = await dbUser.findById(decoded.id);
     socket.user = user || null;
     next();
   } catch {

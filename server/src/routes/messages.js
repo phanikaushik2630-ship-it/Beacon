@@ -1,7 +1,5 @@
 import express from 'express';
-import mongoose from 'mongoose';
-import Message from '../models/Message.js';
-import User from '../models/User.js';
+import { dbUser, dbMessage } from '../services/dbAdapter.js';
 import { protect } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -16,7 +14,7 @@ router.use(protect);
 router.get('/users', async (req, res) => {
   try {
     const { search } = req.query;
-    const currentUserId = req.user._id;
+    const currentUserId = req.user._id || req.user.id;
 
     const filter = {
       _id: { $ne: currentUserId },
@@ -28,10 +26,7 @@ router.get('/users', async (req, res) => {
       filter.$or = [{ username: regex }, { email: regex }];
     }
 
-    const users = await User.find(filter)
-      .select('username email avatar lastSeen isActive createdAt')
-      .sort({ username: 1 })
-      .limit(50);
+    const users = await dbUser.find(filter);
 
     return res.status(200).json({
       success: true,
@@ -49,82 +44,8 @@ router.get('/users', async (req, res) => {
 ────────────────────────────────────────────────── */
 router.get('/conversations', async (req, res) => {
   try {
-    const currentUserId = new mongoose.Types.ObjectId(req.user._id);
-
-    // Aggregate to find the latest message per conversation partner
-    const conversations = await Message.aggregate([
-      {
-        $match: {
-          $or: [{ sender: currentUserId }, { receiver: currentUserId }],
-        },
-      },
-      {
-        $sort: { timestamp: -1 },
-      },
-      {
-        $group: {
-          _id: {
-            $cond: {
-              if: { $eq: ['$sender', currentUserId] },
-              then: '$receiver',
-              else: '$sender',
-            },
-          },
-          lastMessage: { $first: '$$ROOT' },
-          unreadCount: {
-            $sum: {
-              $cond: [
-                {
-                  $and: [
-                    { $eq: ['$receiver', currentUserId] },
-                    { $eq: ['$read', false] },
-                  ],
-                },
-                1,
-                0,
-              ],
-            },
-          },
-        },
-      },
-      {
-        $lookup: {
-          from: 'users',
-          localField: '_id',
-          foreignField: '_id',
-          as: 'partner',
-        },
-      },
-      {
-        $unwind: '$partner',
-      },
-      {
-        $project: {
-          _id: 0,
-          partnerId: '$_id',
-          partner: {
-            id: '$partner._id',
-            username: '$partner.username',
-            email: '$partner.email',
-            avatar: '$partner.avatar',
-            lastSeen: '$partner.lastSeen',
-            isActive: '$partner.isActive',
-          },
-          lastMessage: {
-            id: '$lastMessage._id',
-            sender: '$lastMessage.sender',
-            receiver: '$lastMessage.receiver',
-            content: '$lastMessage.content',
-            timestamp: '$lastMessage.timestamp',
-            read: '$lastMessage.read',
-          },
-          unreadCount: 1,
-        },
-      },
-      {
-        $sort: { 'lastMessage.timestamp': -1 },
-      },
-    ]);
+    const currentUserId = req.user._id || req.user.id;
+    const conversations = await dbMessage.getConversations(currentUserId);
 
     return res.status(200).json({
       success: true,
@@ -143,37 +64,35 @@ router.get('/conversations', async (req, res) => {
 router.get('/:partnerId', async (req, res) => {
   try {
     const { partnerId } = req.params;
-    const currentUserId = req.user._id;
+    const currentUserId = req.user._id || req.user.id;
 
-    if (!mongoose.Types.ObjectId.isValid(partnerId)) {
+    if (!partnerId) {
       return res.status(400).json({ success: false, error: 'Invalid user ID.' });
     }
 
-    const partner = await User.findById(partnerId).select('username email avatar lastSeen isActive');
+    const partner = await dbUser.findById(partnerId);
     if (!partner) {
       return res.status(404).json({ success: false, error: 'User not found.' });
     }
 
-    const messages = await Message.find({
-      $or: [
-        { sender: currentUserId, receiver: partnerId },
-        { sender: partnerId, receiver: currentUserId },
-      ],
-    })
-      .sort({ timestamp: 1 })
-      .populate('sender', 'username email avatar')
-      .populate('receiver', 'username email avatar')
-      .limit(100);
+    const messages = await dbMessage.getHistory(currentUserId, partnerId, 100);
 
     // Auto mark received messages as read
-    await Message.updateMany(
+    await dbMessage.updateMany(
       { sender: partnerId, receiver: currentUserId, read: false },
       { $set: { read: true, readAt: new Date() } }
     );
 
     return res.status(200).json({
       success: true,
-      partner,
+      partner: {
+        id: partner._id || partner.id,
+        username: partner.username,
+        email: partner.email,
+        avatar: partner.avatar,
+        lastSeen: partner.lastSeen,
+        isActive: partner.isActive,
+      },
       messages,
     });
   } catch (err) {
@@ -189,13 +108,13 @@ router.get('/:partnerId', async (req, res) => {
 router.patch('/:partnerId/read', async (req, res) => {
   try {
     const { partnerId } = req.params;
-    const currentUserId = req.user._id;
+    const currentUserId = req.user._id || req.user.id;
 
-    if (!mongoose.Types.ObjectId.isValid(partnerId)) {
+    if (!partnerId) {
       return res.status(400).json({ success: false, error: 'Invalid user ID.' });
     }
 
-    const result = await Message.updateMany(
+    const result = await dbMessage.updateMany(
       { sender: partnerId, receiver: currentUserId, read: false },
       { $set: { read: true, readAt: new Date() } }
     );
@@ -217,26 +136,25 @@ router.patch('/:partnerId/read', async (req, res) => {
 router.delete('/item/:messageId', async (req, res) => {
   try {
     const { messageId } = req.params;
-    const currentUserId = req.user._id;
+    const currentUserId = (req.user._id || req.user.id).toString();
 
-    if (!mongoose.Types.ObjectId.isValid(messageId)) {
+    if (!messageId) {
       return res.status(400).json({ success: false, error: 'Invalid message ID.' });
     }
 
-    const message = await Message.findById(messageId);
+    const message = await dbMessage.findById(messageId);
     if (!message) {
       return res.status(404).json({ success: false, error: 'Message not found.' });
     }
 
-    // Only sender or receiver can delete the message
-    const isSender = message.sender.toString() === currentUserId.toString();
-    const isReceiver = message.receiver.toString() === currentUserId.toString();
+    const senderId = (typeof message.sender === 'object' ? (message.sender._id || message.sender.id) : message.sender).toString();
+    const receiverId = (typeof message.receiver === 'object' ? (message.receiver._id || message.receiver.id) : message.receiver).toString();
 
-    if (!isSender && !isReceiver) {
+    if (senderId !== currentUserId && receiverId !== currentUserId) {
       return res.status(403).json({ success: false, error: 'Not authorized to delete this message.' });
     }
 
-    await Message.findByIdAndDelete(messageId);
+    await dbMessage.findByIdAndDelete(messageId);
 
     return res.status(200).json({
       success: true,
@@ -256,13 +174,13 @@ router.delete('/item/:messageId', async (req, res) => {
 router.delete('/thread/:partnerId', async (req, res) => {
   try {
     const { partnerId } = req.params;
-    const currentUserId = req.user._id;
+    const currentUserId = req.user._id || req.user.id;
 
-    if (!mongoose.Types.ObjectId.isValid(partnerId)) {
+    if (!partnerId) {
       return res.status(400).json({ success: false, error: 'Invalid partner ID.' });
     }
 
-    const result = await Message.deleteMany({
+    const result = await dbMessage.deleteMany({
       $or: [
         { sender: currentUserId, receiver: partnerId },
         { sender: partnerId, receiver: currentUserId },

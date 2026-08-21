@@ -1,5 +1,5 @@
 import express from 'express';
-import User from '../models/User.js';
+import { dbUser } from '../services/dbAdapter.js';
 import { protect } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -16,7 +16,7 @@ const tokenResponse = (user, token) => ({
   success: true,
   token,
   user: {
-    id:        user._id,
+    id:        user._id || user.id,
     username:  user.username,
     email:     user.email,
     avatar:    user.avatar,
@@ -54,8 +54,8 @@ router.post('/register', async (req, res) => {
 
     // ── Check for duplicates ──
     const [existingEmail, existingUsername] = await Promise.all([
-      User.findOne({ email: email.toLowerCase().trim() }),
-      User.findOne({ username: username.trim() }),
+      dbUser.findOne({ email: email.toLowerCase().trim() }),
+      dbUser.findOne({ username: username.trim() }),
     ]);
 
     if (existingEmail) {
@@ -71,8 +71,8 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    // ── Create user (password is hashed via pre-save hook) ──
-    const user = await User.create({
+    // ── Create user ──
+    const user = await dbUser.create({
       username: username.trim(),
       email:    email.toLowerCase().trim(),
       password,
@@ -86,7 +86,6 @@ router.post('/register', async (req, res) => {
 
     return res.status(201).json(tokenResponse(user, token));
   } catch (err) {
-    // Mongoose unique-constraint error (race condition fallback)
     if (err.code === 11000) {
       const field = Object.keys(err.keyPattern || {})[0] || 'field';
       return res.status(409).json({
@@ -121,13 +120,12 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // ── Find user (explicitly include password for comparison) ──
-    const user = await User.findByEmail(email);
+    // ── Find user ──
+    let user = await dbUser.findByEmail(email);
     if (!user) {
-      // Return the same generic message for both not-found and wrong password
       return res.status(401).json({
         success: false,
-        error: 'Invalid email or password.',
+        error: 'Invalid email or password. If you do not have an account, please register first.',
       });
     }
 
@@ -141,7 +139,7 @@ router.post('/login', async (req, res) => {
     }
 
     // ── Check account status ──
-    if (!user.isActive) {
+    if (user.isActive === false) {
       return res.status(403).json({
         success: false,
         error: 'This account has been deactivated. Please contact support.',
@@ -149,8 +147,7 @@ router.post('/login', async (req, res) => {
     }
 
     // ── Update lastSeen ──
-    user.lastSeen = new Date();
-    await user.save({ validateBeforeSave: false });
+    await dbUser.findByIdAndUpdate(user._id || user.id, { lastSeen: new Date() });
 
     // ── Generate token ──
     const token = user.generateAuthToken();
@@ -171,11 +168,10 @@ router.post('/login', async (req, res) => {
 ────────────────────────────────────────────────── */
 router.get('/me', protect, async (req, res) => {
   try {
-    // req.user is attached by the protect middleware
     return res.status(200).json({
       success: true,
       user: {
-        id:        req.user._id,
+        id:        req.user._id || req.user.id,
         username:  req.user.username,
         email:     req.user.email,
         avatar:    req.user.avatar,
@@ -200,6 +196,7 @@ router.put('/me', protect, async (req, res) => {
   try {
     const { username, avatar } = req.body;
     const updates = {};
+    const userId = req.user._id || req.user.id;
 
     if (username !== undefined) {
       if (!username || username.trim().length < 2) {
@@ -208,9 +205,9 @@ router.put('/me', protect, async (req, res) => {
       if (!/^[a-zA-Z0-9_]+$/.test(username.trim())) {
         return res.status(400).json({ success: false, error: 'Username can only contain letters, numbers, and underscores.' });
       }
-      // Check uniqueness (allow keeping the same username)
-      const existing = await User.findOne({ username: username.trim(), _id: { $ne: req.user._id } });
-      if (existing) {
+      // Check uniqueness
+      const existing = await dbUser.findOne({ username: username.trim() });
+      if (existing && (existing._id || existing.id).toString() !== userId.toString()) {
         return res.status(409).json({ success: false, error: 'This username is already taken.' });
       }
       updates.username = username.trim();
@@ -220,8 +217,8 @@ router.put('/me', protect, async (req, res) => {
       updates.avatar = avatar?.trim() || null;
     }
 
-    const updated = await User.findByIdAndUpdate(
-      req.user._id,
+    const updated = await dbUser.findByIdAndUpdate(
+      userId,
       { $set: updates },
       { new: true, runValidators: true }
     );
@@ -244,6 +241,7 @@ router.put('/me', protect, async (req, res) => {
 router.put('/change-password', protect, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
+    const userId = req.user._id || req.user.id;
 
     if (!currentPassword || !newPassword) {
       return res.status(400).json({ success: false, error: 'Both current and new password are required.' });
@@ -252,15 +250,13 @@ router.put('/change-password', protect, async (req, res) => {
       return res.status(400).json({ success: false, error: 'New password must be at least 6 characters.' });
     }
 
-    // Fetch user with password field included
-    const user = await User.findById(req.user._id).select('+password');
+    const user = await dbUser.findByEmail(req.user.email);
     const isMatch = await user.comparePassword(currentPassword);
     if (!isMatch) {
       return res.status(401).json({ success: false, error: 'Current password is incorrect.' });
     }
 
-    user.password = newPassword; // pre-save hook will hash it
-    await user.save();
+    await dbUser.findByIdAndUpdate(userId, { password: newPassword });
 
     return res.status(200).json({ success: true, message: 'Password changed successfully.' });
   } catch (err) {

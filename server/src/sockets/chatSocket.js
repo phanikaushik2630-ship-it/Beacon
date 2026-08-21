@@ -1,6 +1,4 @@
-import mongoose from 'mongoose';
-import Message from '../models/Message.js';
-import User from '../models/User.js';
+import { dbUser, dbMessage } from '../services/dbAdapter.js';
 import { socketAuth } from '../middleware/auth.js';
 
 /**
@@ -15,7 +13,7 @@ export const registerChatSocketHandlers = (io) => {
 
   io.on('connection', async (socket) => {
     const user = socket.user;
-    const userId = user ? user._id.toString() : null;
+    const userId = user ? (user._id || user.id).toString() : null;
 
     if (userId) {
       socket.join(userId);
@@ -25,7 +23,7 @@ export const registerChatSocketHandlers = (io) => {
       }
       onlineUsers.get(userId).add(socket.id);
 
-      User.findByIdAndUpdate(userId, { lastSeen: new Date() }).catch(() => {});
+      dbUser.findByIdAndUpdate(userId, { lastSeen: new Date() }).catch(() => {});
       io.emit('users:online', getOnlineUserIds());
     }
 
@@ -45,10 +43,10 @@ export const registerChatSocketHandlers = (io) => {
           return socket.emit('error:message', errResponse);
         }
 
-        const receiverId = data.receiverId || data.receiver;
+        const receiverId = (data.receiverId || data.receiver)?.toString();
         const content = data.content || data.message;
 
-        if (!receiverId || !mongoose.Types.ObjectId.isValid(receiverId)) {
+        if (!receiverId) {
           const errResponse = { success: false, error: 'Invalid recipient ID.' };
           if (typeof callback === 'function') callback(errResponse);
           return socket.emit('error:message', errResponse);
@@ -60,18 +58,14 @@ export const registerChatSocketHandlers = (io) => {
           return socket.emit('error:message', errResponse);
         }
 
-        const createdMessage = await Message.create({
-          sender: user._id,
-          receiver: new mongoose.Types.ObjectId(receiverId),
+        const populatedMessage = await dbMessage.create({
+          sender: user._id || user.id,
+          receiver: receiverId,
           content: content.trim(),
           timestamp: new Date(),
         });
 
-        const populatedMessage = await Message.findById(createdMessage._id)
-          .populate('sender', 'username email avatar')
-          .populate('receiver', 'username email avatar');
-
-        io.to(receiverId.toString()).emit('receiveMessage', populatedMessage);
+        io.to(receiverId).emit('receiveMessage', populatedMessage);
         io.to(userId).emit('receiveMessage', populatedMessage);
 
         if (typeof callback === 'function') {
@@ -90,14 +84,17 @@ export const registerChatSocketHandlers = (io) => {
       try {
         if (!user || !messageId) return;
 
-        const msg = await Message.findById(messageId);
+        const msg = await dbMessage.findById(messageId);
         if (msg) {
+          const senderId = (typeof msg.sender === 'object' ? (msg.sender._id || msg.sender.id) : msg.sender).toString();
+          const receiverId = (typeof msg.receiver === 'object' ? (msg.receiver._id || msg.receiver.id) : msg.receiver).toString();
+
           // Authorize deletion
-          if (msg.sender.toString() === userId || msg.receiver.toString() === userId) {
-            await Message.findByIdAndDelete(messageId);
+          if (senderId === userId || receiverId === userId) {
+            await dbMessage.findByIdAndDelete(messageId);
 
             const payload = { messageId, partnerId, deletedBy: userId };
-            io.to(partnerId.toString()).emit('messageDeleted', payload);
+            if (partnerId) io.to(partnerId.toString()).emit('messageDeleted', payload);
             io.to(userId).emit('messageDeleted', payload);
 
             if (typeof callback === 'function') callback({ success: true, messageId });
@@ -113,10 +110,10 @@ export const registerChatSocketHandlers = (io) => {
       try {
         if (!user || !partnerId) return;
 
-        await Message.deleteMany({
+        await dbMessage.deleteMany({
           $or: [
-            { sender: user._id, receiver: partnerId },
-            { sender: partnerId, receiver: user._id },
+            { sender: user._id || user.id, receiver: partnerId },
+            { sender: partnerId, receiver: user._id || user.id },
           ],
         });
 
@@ -153,8 +150,8 @@ export const registerChatSocketHandlers = (io) => {
     socket.on('messages:read', async ({ partnerId }) => {
       try {
         if (!user || !partnerId) return;
-        await Message.updateMany(
-          { sender: partnerId, receiver: user._id, read: false },
+        await dbMessage.updateMany(
+          { sender: partnerId, receiver: user._id || user.id, read: false },
           { $set: { read: true, readAt: new Date() } }
         );
         io.to(partnerId.toString()).emit('messages:read_receipt', {
@@ -174,7 +171,7 @@ export const registerChatSocketHandlers = (io) => {
 
         if (userSockets.size === 0) {
           onlineUsers.delete(userId);
-          User.findByIdAndUpdate(userId, { lastSeen: new Date() }).catch(() => {});
+          dbUser.findByIdAndUpdate(userId, { lastSeen: new Date() }).catch(() => {});
           io.emit('users:online', getOnlineUserIds());
         }
       }

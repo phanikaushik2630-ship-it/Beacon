@@ -22,6 +22,7 @@ import {
   FileJson,
   Trash2,
   AlertTriangle,
+  Palette,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { messageApi } from '../services/api';
@@ -35,11 +36,19 @@ import {
   markMessagesRead,
   pingServer,
 } from '../services/socket';
-import LiveBackground from '../components/LiveBackground';
 import Avatar from '../components/Avatar';
 import BeaconLogo, { MiniBeaconLogo } from '../components/BeaconLogo';
 import EmojiPicker from '../components/EmojiPicker';
 import GifPicker from '../components/GifPicker';
+
+/* ── Wallpaper Themes for Chat ── */
+const WALLPAPER_THEMES = [
+  { id: 'obsidian', name: 'Obsidian Night', bg: 'bg-[#08030e]', color: '#08030e' },
+  { id: 'midnight', name: 'Midnight Violet', bg: 'bg-[#0e0419]', color: '#0e0419' },
+  { id: 'pureBlack', name: 'Pitch Black', bg: 'bg-[#000000]', color: '#000000' },
+  { id: 'deepSlate', name: 'Deep Slate', bg: 'bg-[#090d16]', color: '#090d16' },
+  { id: 'darkWine', name: 'Dark Velvet', bg: 'bg-[#150410]', color: '#150410' },
+];
 
 /* ── Helpers ── */
 const formatTime = (dateStr) => {
@@ -115,6 +124,17 @@ export default function ChatPage() {
   const [showBackupMenu, setShowBackupMenu] = useState(false);
   const [messageToDelete, setMessageToDelete] = useState(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [chatWallpaper, setChatWallpaper] = useState(() => {
+    return localStorage.getItem('beacon_chat_wallpaper') || 'obsidian';
+  });
+
+  const handleSelectWallpaper = (themeId) => {
+    setChatWallpaper(themeId);
+    localStorage.setItem('beacon_chat_wallpaper', themeId);
+  };
+
+  const activeWallpaperObj =
+    WALLPAPER_THEMES.find((w) => w.id === chatWallpaper) || WALLPAPER_THEMES[0];
 
   const messagesEndRef = useRef(null);
   const messageContainerRef = useRef(null);
@@ -562,10 +582,10 @@ export default function ChatPage() {
   const isPartnerTyping = activePartner && typingUsers.has(activePartner.id);
 
   return (
-    <div className="h-screen bg-[#040207] flex overflow-hidden relative text-white select-none">
-      {/* Dynamic Background */}
-      <LiveBackground opacity={0.65} />
-
+    <div
+      className={`h-screen ${activeWallpaperObj.bg} flex overflow-hidden relative text-white select-none transition-colors duration-300`}
+      style={{ backgroundColor: activeWallpaperObj.color }}
+    >
       {/* ══════════════════════════════════════════════════
           SIDEBAR: CONVERSATIONS & DIRECTORY
       ══════════════════════════════════════════════════ */}
@@ -919,9 +939,37 @@ export default function ChatPage() {
 
                   {/* Popover */}
                   {showBackupMenu && (
-                    <div className="absolute right-0 top-full mt-2 w-52 bg-[#0e0417]/95 border border-pink-500/30 rounded-2xl shadow-2xl p-2 z-50 msg-in backdrop-blur-xl">
-                      <div className="px-3 py-1.5 text-[10px] font-mono text-pink-300/60 uppercase tracking-wider border-b border-pink-500/20 mb-1">
-                        Chat Backup & Options
+                    <div className="absolute right-0 top-full mt-2 w-56 bg-[#0e0417]/95 border border-pink-500/30 rounded-2xl shadow-2xl p-2.5 z-50 msg-in backdrop-blur-xl">
+                      {/* Wallpaper Color Selector */}
+                      <div className="px-2 py-1 text-[10px] font-mono text-pink-300/70 uppercase tracking-wider flex items-center gap-1.5 mb-1.5">
+                        <Palette className="w-3 h-3 text-pink-400" />
+                        <span>Chat Wallpaper Color</span>
+                      </div>
+                      <div className="grid grid-cols-5 gap-1.5 px-1 mb-2.5">
+                        {WALLPAPER_THEMES.map((theme) => (
+                          <button
+                            key={theme.id}
+                            type="button"
+                            onClick={() => handleSelectWallpaper(theme.id)}
+                            title={theme.name}
+                            className={`h-7 rounded-lg border flex items-center justify-center transition-all cursor-pointer ${
+                              chatWallpaper === theme.id
+                                ? 'border-pink-400 ring-2 ring-pink-500/50 scale-105 shadow-sm shadow-pink-500/40'
+                                : 'border-white/20 hover:border-pink-400/50'
+                            }`}
+                            style={{ backgroundColor: theme.color }}
+                          >
+                            {chatWallpaper === theme.id && (
+                              <Check className="w-3 h-3 text-pink-400" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="my-1 border-t border-pink-500/20" />
+
+                      <div className="px-2 py-1 text-[10px] font-mono text-pink-300/60 uppercase tracking-wider mb-1">
+                        Export & Options
                       </div>
                       <button
                         onClick={() => handleExportChat('txt')}
