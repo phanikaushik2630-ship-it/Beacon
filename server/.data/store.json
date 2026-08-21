@@ -1,0 +1,46 @@
+{
+  "users": [
+    {
+      "_id": "660000000000000000000001",
+      "username": "aurora",
+      "email": "aurora@beacon.app",
+      "password": "$2a$10$dLXqo44hIsaWnlsXr0AEq.67Qzz3edIReJfN6nXjz9vbsTae6.oRW",
+      "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+      "isActive": true,
+      "lastSeen": "2026-08-21T07:48:04.957Z",
+      "createdAt": "2026-08-21T07:48:04.957Z"
+    },
+    {
+      "_id": "660000000000000000000002",
+      "username": "nova",
+      "email": "nova@beacon.app",
+      "password": "$2a$10$dLXqo44hIsaWnlsXr0AEq.67Qzz3edIReJfN6nXjz9vbsTae6.oRW",
+      "avatar": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80",
+      "isActive": true,
+      "lastSeen": "2026-08-21T07:48:04.957Z",
+      "createdAt": "2026-08-21T07:48:04.957Z"
+    },
+    {
+      "_id": "660000000000000000000003",
+      "username": "cyber_pilot",
+      "email": "pilot@beacon.app",
+      "password": "$2a$10$dLXqo44hIsaWnlsXr0AEq.67Qzz3edIReJfN6nXjz9vbsTae6.oRW",
+      "avatar": "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&auto=format&fit=crop&q=80",
+      "isActive": true,
+      "lastSeen": "2026-08-21T07:48:04.957Z",
+      "createdAt": "2026-08-21T07:48:04.957Z"
+    },
+    {
+      "_id": "2b7c24b52d1d4effd272a6b9",
+      "username": "kaushikchennu",
+      "email": "kaushik.chennu@gmail.com",
+      "password": "$2a$10$vGWyBPmRkpSKQn0DY1N.ROujUmnUL5C4XWMr1EOgPPuUqH2ieORP2",
+      "avatar": null,
+      "isActive": true,
+      "lastSeen": "2026-08-21T07:49:56.079Z",
+      "createdAt": "2026-08-21T07:49:48.509Z",
+      "updatedAt": "2026-08-21T07:49:56.079Z"
+    }
+  ],
+  "messages": []
+}

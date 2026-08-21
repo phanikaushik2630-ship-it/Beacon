@@ -99,6 +99,12 @@ export const authApi = {
       method: 'PUT',
       body: JSON.stringify(payload),
     }),
+
+  forgotPassword: (payload) =>
+    apiRequest('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
 };
 
 export const messageApi = {

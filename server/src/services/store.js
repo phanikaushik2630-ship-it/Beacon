@@ -1,12 +1,14 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-/**
- * High-Performance In-Memory Data Store
- * Seamlessly provides instant user authentication, conversation tracking,
- * and direct messaging when MongoDB is disconnected or in offline mode.
- */
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const DATA_DIR = path.join(__dirname, '..', '..', '.data');
+const DATA_FILE = path.join(DATA_DIR, 'store.json');
 
 // Generate standard 24-character hex ID (similar to MongoDB ObjectId)
 export const generateId = () => crypto.randomBytes(12).toString('hex');
@@ -15,7 +17,61 @@ class InMemoryStore {
   constructor() {
     this.users = new Map();
     this.messages = [];
-    this.initDefaultUsers();
+    this.init();
+  }
+
+  async init() {
+    // Ensure directory exists
+    try {
+      if (!fs.existsSync(DATA_DIR)) {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+      }
+    } catch (e) {
+      console.warn('[Store] Could not create data directory:', e.message);
+    }
+
+    // Attempt to load from disk
+    const loaded = this.loadFromDisk();
+    if (!loaded || this.users.size === 0) {
+      await this.initDefaultUsers();
+      this.saveToDisk();
+    }
+  }
+
+  saveToDisk() {
+    try {
+      if (!fs.existsSync(DATA_DIR)) {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+      }
+      const data = {
+        users: Array.from(this.users.values()),
+        messages: this.messages,
+      };
+      fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf-8');
+    } catch (e) {
+      console.warn('[Store] Could not save store to disk:', e.message);
+    }
+  }
+
+  loadFromDisk() {
+    try {
+      if (fs.existsSync(DATA_FILE)) {
+        const raw = fs.readFileSync(DATA_FILE, 'utf-8');
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed.users)) {
+          for (const u of parsed.users) {
+            this.users.set(u._id, u);
+          }
+        }
+        if (Array.isArray(parsed.messages)) {
+          this.messages = parsed.messages;
+        }
+        return true;
+      }
+    } catch (e) {
+      console.warn('[Store] Could not load store from disk:', e.message);
+    }
+    return false;
   }
 
   async initDefaultUsers() {
@@ -142,6 +198,7 @@ class InMemoryStore {
     };
 
     this.users.set(id, newUser);
+    this.saveToDisk();
     return this.formatUser(newUser);
   }
 
@@ -160,7 +217,24 @@ class InMemoryStore {
     user.updatedAt = new Date();
 
     this.users.set(stringId, user);
+    this.saveToDisk();
     return this.formatUser(user);
+  }
+
+  async resetUserPasswordByEmail(email, newPassword) {
+    if (!email || !newPassword) return null;
+    const cleanEmail = email.toLowerCase().trim();
+    for (const [id, user] of this.users.entries()) {
+      if (user.email.toLowerCase() === cleanEmail) {
+        const salt = await bcrypt.genSalt(10);
+        user.password = await bcrypt.hash(newPassword, salt);
+        user.updatedAt = new Date();
+        this.users.set(id, user);
+        this.saveToDisk();
+        return this.formatUser(user);
+      }
+    }
+    return null;
   }
 
   async getAllUsers(excludeUserId = null, searchQuery = '') {
@@ -202,6 +276,7 @@ class InMemoryStore {
     };
 
     this.messages.push(msg);
+    this.saveToDisk();
 
     // Return populated message
     const senderUser = await this.findUserById(senderId);
@@ -232,6 +307,7 @@ class InMemoryStore {
     const stringId = messageId.toString();
     const initialLen = this.messages.length;
     this.messages = this.messages.filter((m) => m._id !== stringId);
+    this.saveToDisk();
     return this.messages.length < initialLen;
   }
 
@@ -244,6 +320,7 @@ class InMemoryStore {
       (m) => !( (m.sender === u1 && m.receiver === u2) || (m.sender === u2 && m.receiver === u1) )
     );
 
+    this.saveToDisk();
     return initialLen - this.messages.length;
   }
 
@@ -259,6 +336,7 @@ class InMemoryStore {
         count++;
       }
     }
+    if (count > 0) this.saveToDisk();
     return count;
   }
 

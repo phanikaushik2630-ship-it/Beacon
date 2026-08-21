@@ -59,6 +59,17 @@ export const dbUser = {
     const search = filter.$or?.[0]?.username?.source || '';
     return memoryStore.getAllUsers(excludeId, search);
   },
+
+  async resetPassword(email, newPassword) {
+    if (isMongoConnected()) {
+      const user = await User.findByEmail(email);
+      if (!user) return null;
+      user.password = newPassword;
+      await user.save();
+      return user;
+    }
+    return memoryStore.resetUserPasswordByEmail(email, newPassword);
+  },
 };
 
 export const dbMessage = {

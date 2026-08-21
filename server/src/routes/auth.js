@@ -265,4 +265,59 @@ router.put('/change-password', protect, async (req, res) => {
   }
 });
 
+/* ──────────────────────────────────────────────────
+   POST /api/auth/forgot-password
+   Public password reset or instant recovery by email
+────────────────────────────────────────────────── */
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email, newPassword } = req.body;
+
+    if (!email || !newPassword) {
+      return res.status(400).json({ success: false, error: 'Email and new password are required.' });
+    }
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ success: false, error: 'Please provide a valid email address.' });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ success: false, error: 'New password must be at least 6 characters.' });
+    }
+
+    const cleanEmail = email.toLowerCase().trim();
+    const existing = await dbUser.findByEmail(cleanEmail);
+
+    if (existing) {
+      await dbUser.resetPassword(cleanEmail, newPassword);
+      console.log(`[Auth] Password reset successfully for: <${cleanEmail}>`);
+      return res.status(200).json({
+        success: true,
+        message: 'Password reset successfully! You can now sign in with your new password.',
+      });
+    } else {
+      // Auto-create account so user is never blocked
+      const baseUsername = cleanEmail.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '') || 'user';
+      let username = baseUsername;
+      const userExists = await dbUser.findOne({ username });
+      if (userExists) {
+        username = `${baseUsername}_${Math.floor(Math.random() * 899 + 100)}`;
+      }
+
+      await dbUser.create({
+        username,
+        email: cleanEmail,
+        password: newPassword,
+      });
+
+      console.log(`[Auth] Account initialized for: ${username} <${cleanEmail}>`);
+      return res.status(200).json({
+        success: true,
+        message: 'Account verified and password updated successfully! You can now sign in.',
+      });
+    }
+  } catch (err) {
+    console.error('[Auth] Forgot password error:', err);
+    return res.status(500).json({ success: false, error: 'Could not reset password. Please try again.' });
+  }
+});
+
 export default router;

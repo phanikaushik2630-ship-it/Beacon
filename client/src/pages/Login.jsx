@@ -1,7 +1,19 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Lock, Mail, Eye, EyeOff, ArrowRight, AlertCircle, Loader2 } from 'lucide-react';
+import {
+  Lock,
+  Mail,
+  Eye,
+  EyeOff,
+  ArrowRight,
+  AlertCircle,
+  Loader2,
+  KeyRound,
+  CheckCircle2,
+  X,
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { authApi } from '../services/api';
 import LiveBackground from '../components/LiveBackground';
 import BeaconLogo, { MiniBeaconLogo } from '../components/BeaconLogo';
 
@@ -11,6 +23,16 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [localError, setLocalError] = useState('');
+  const [localSuccess, setLocalSuccess] = useState('');
+
+  // Forgot Password Modal State
+  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotNewPassword, setForgotNewPassword] = useState('');
+  const [forgotConfirmPassword, setForgotConfirmPassword] = useState('');
+  const [showForgotPass, setShowForgotPass] = useState(false);
+  const [forgotSubmitting, setForgotSubmitting] = useState(false);
+  const [forgotError, setForgotError] = useState('');
 
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -21,6 +43,7 @@ export default function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLocalError('');
+    setLocalSuccess('');
 
     if (!email.trim() || !password) {
       setLocalError('Please enter both email and password.');
@@ -33,9 +56,52 @@ export default function Login() {
       await login({ email: email.trim(), password });
       navigate(from, { replace: true });
     } catch (err) {
-      setLocalError(err.message || 'Login failed. Please check your credentials.');
+      setLocalError(err.message || 'Invalid email or password.');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleForgotPasswordSubmit = async (e) => {
+    e.preventDefault();
+    setForgotError('');
+
+    if (!forgotEmail.trim()) {
+      setForgotError('Please enter your email address.');
+      return;
+    }
+    if (!forgotNewPassword || forgotNewPassword.length < 6) {
+      setForgotError('New password must be at least 6 characters.');
+      return;
+    }
+    if (forgotNewPassword !== forgotConfirmPassword) {
+      setForgotError('Passwords do not match.');
+      return;
+    }
+
+    setForgotSubmitting(true);
+
+    try {
+      const res = await authApi.forgotPassword({
+        email: forgotEmail.trim(),
+        newPassword: forgotNewPassword,
+      });
+
+      if (res.success) {
+        setEmail(forgotEmail.trim());
+        setPassword(forgotNewPassword);
+        setLocalSuccess('Password reset successfully! Please click "Sign In".');
+        setShowForgotModal(false);
+        setForgotEmail('');
+        setForgotNewPassword('');
+        setForgotConfirmPassword('');
+      } else {
+        setForgotError(res.error || 'Could not reset password.');
+      }
+    } catch (err) {
+      setForgotError(err.message || 'Failed to reset password. Please check your email address.');
+    } finally {
+      setForgotSubmitting(false);
     }
   };
 
@@ -75,6 +141,14 @@ export default function Login() {
             </p>
           </div>
 
+          {/* Success Message */}
+          {localSuccess && (
+            <div className="mb-6 p-3.5 rounded-xl bg-emerald-500/15 border border-emerald-400/30 flex items-start gap-3 text-emerald-200 text-xs sm:text-sm msg-in shadow-sm">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
+              <div className="flex-1 leading-snug font-medium">{localSuccess}</div>
+            </div>
+          )}
+
           {/* Error Message */}
           {localError && (
             <div className="mb-6 p-3.5 rounded-xl bg-red-500/10 border border-red-400/30 flex items-start gap-3 text-red-200 text-xs sm:text-sm msg-in">
@@ -113,6 +187,17 @@ export default function Login() {
                 <label className="block text-xs font-bold text-pink-200/90 uppercase tracking-wider font-syne">
                   Password
                 </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setForgotEmail(email);
+                    setForgotError('');
+                    setShowForgotModal(true);
+                  }}
+                  className="text-[11px] font-mono text-pink-400 hover:text-white hover:underline transition-colors cursor-pointer"
+                >
+                  Forgot Password?
+                </button>
               </div>
               <div className="relative flex items-center">
                 <Lock className="absolute left-4 w-4 h-4 text-pink-400 pointer-events-none" />
@@ -172,6 +257,134 @@ export default function Login() {
           </div>
         </div>
       </main>
+
+      {/* ── FORGOT PASSWORD MODAL ── */}
+      {showForgotModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md msg-in">
+          <div className="join-card w-full max-w-md rounded-2xl p-6 sm:p-8 relative">
+            <button
+              onClick={() => setShowForgotModal(false)}
+              className="absolute right-4 top-4 text-pink-300/60 hover:text-white p-1 rounded-lg hover:bg-pink-500/10 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-pink-500/20 border border-pink-400/40 flex items-center justify-center text-pink-400">
+                <KeyRound className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-lg text-white font-syne">Reset Password</h3>
+                <p className="text-xs text-pink-200/60 font-sans">
+                  Enter your email and choose a new password
+                </p>
+              </div>
+            </div>
+
+            {forgotError && (
+              <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-400/30 flex items-start gap-2.5 text-red-200 text-xs msg-in">
+                <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">{forgotError}</div>
+              </div>
+            )}
+
+            <form onSubmit={handleForgotPasswordSubmit} className="space-y-3.5">
+              <div>
+                <label className="block text-[11px] font-bold text-pink-200/80 mb-1 uppercase tracking-wider font-syne">
+                  Account Email
+                </label>
+                <div className="relative flex items-center">
+                  <Mail className="absolute left-3.5 w-4 h-4 text-pink-400 pointer-events-none" />
+                  <input
+                    type="email"
+                    required
+                    value={forgotEmail}
+                    onChange={(e) => {
+                      setForgotEmail(e.target.value);
+                      if (forgotError) setForgotError('');
+                    }}
+                    placeholder="your-email@example.com"
+                    className="join-input w-full rounded-xl pl-10 pr-4 py-2.5 text-xs sm:text-sm text-white placeholder-pink-300/30 font-sans focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-pink-200/80 mb-1 uppercase tracking-wider font-syne">
+                  New Password
+                </label>
+                <div className="relative flex items-center">
+                  <Lock className="absolute left-3.5 w-4 h-4 text-pink-400 pointer-events-none" />
+                  <input
+                    type={showForgotPass ? 'text' : 'password'}
+                    required
+                    minLength={6}
+                    value={forgotNewPassword}
+                    onChange={(e) => {
+                      setForgotNewPassword(e.target.value);
+                      if (forgotError) setForgotError('');
+                    }}
+                    placeholder="At least 6 characters"
+                    className="join-input w-full rounded-xl pl-10 pr-10 py-2.5 text-xs sm:text-sm text-white placeholder-pink-300/30 font-sans focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowForgotPass((prev) => !prev)}
+                    className="absolute right-3 text-pink-300/60 hover:text-white p-0.5"
+                  >
+                    {showForgotPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-pink-200/80 mb-1 uppercase tracking-wider font-syne">
+                  Confirm New Password
+                </label>
+                <div className="relative flex items-center">
+                  <Lock className="absolute left-3.5 w-4 h-4 text-pink-400 pointer-events-none" />
+                  <input
+                    type={showForgotPass ? 'text' : 'password'}
+                    required
+                    minLength={6}
+                    value={forgotConfirmPassword}
+                    onChange={(e) => {
+                      setForgotConfirmPassword(e.target.value);
+                      if (forgotError) setForgotError('');
+                    }}
+                    placeholder="Repeat new password"
+                    className="join-input w-full rounded-xl pl-10 pr-4 py-2.5 text-xs sm:text-sm text-white placeholder-pink-300/30 font-sans focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowForgotModal(false)}
+                  className="flex-1 py-2.5 rounded-xl border border-pink-500/30 bg-pink-500/10 text-xs font-mono text-pink-200 hover:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={forgotSubmitting}
+                  className="flex-1 py-2.5 rounded-xl white-btn text-xs font-bold font-syne flex items-center justify-center gap-1.5 shadow-md shadow-pink-500/40 disabled:opacity-40"
+                >
+                  {forgotSubmitting ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-pink-600" />
+                      <span>Updating…</span>
+                    </>
+                  ) : (
+                    <span>Reset Password</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
