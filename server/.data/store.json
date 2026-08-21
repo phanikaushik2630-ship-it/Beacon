@@ -34,12 +34,12 @@
       "_id": "2b7c24b52d1d4effd272a6b9",
       "username": "kaushikchennu",
       "email": "kaushik.chennu@gmail.com",
-      "password": "$2a$10$vGWyBPmRkpSKQn0DY1N.ROujUmnUL5C4XWMr1EOgPPuUqH2ieORP2",
+      "password": "$2a$10$c819zqUbk7ZUH12pZQVg6emkTUKBWeynQhJgCdsg5u6wCwCRqfer6",
       "avatar": null,
       "isActive": true,
-      "lastSeen": "2026-08-21T07:49:56.079Z",
+      "lastSeen": "2026-08-21T07:52:42.674Z",
       "createdAt": "2026-08-21T07:49:48.509Z",
-      "updatedAt": "2026-08-21T07:49:56.079Z"
+      "updatedAt": "2026-08-21T07:52:42.674Z"
     }
   ],
   "messages": []

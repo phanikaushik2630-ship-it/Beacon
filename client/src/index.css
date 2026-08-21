@@ -291,3 +291,34 @@
 .title-reveal-d2 { animation-delay: 0.25s; opacity: 0; }
 .title-reveal-d3 { animation-delay: 0.4s; opacity: 0; }
 .title-reveal-d4 { animation-delay: 0.55s; opacity: 0; }
+
+/* ─────────────────────────────────────
+   WHATSAPP DARK THEME UTILITIES
+───────────────────────────────────── */
+.wa-chat-bg {
+  background-color: #0b141a;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 0);
+  background-size: 20px 20px;
+}
+
+.wa-sent-bubble {
+  background: #005c4b;
+  color: #e9edef;
+  border-radius: 16px 16px 4px 16px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.wa-received-bubble {
+  background: #202c33;
+  color: #e9edef;
+  border-radius: 16px 16px 16px 4px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.wa-date-pill {
+  background-color: #182229;
+  color: #8696a0;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
