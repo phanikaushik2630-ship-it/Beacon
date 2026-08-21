@@ -9,6 +9,13 @@ import authRouter   from './routes/auth.js';
 import messagesRouter from './routes/messages.js';
 import { registerChatSocketHandlers } from './sockets/chatSocket.js';
 
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 // ── Load environment variables ──
 dotenv.config();
 
@@ -109,27 +116,38 @@ app.use('/api', healthRouter);             // GET /api/health
 app.use('/api/auth', authRouter);          // POST /api/auth/register, /api/auth/login, etc.
 app.use('/api/messages', messagesRouter);  // 1-to-1 direct messaging routes
 
-// Root info route
-app.get('/', (_req, res) => {
-  res.json({
-    name:    'Beacon API',
-    status:  'online',
-    version: '1.0.0',
-    db:      mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
-    routes: {
-      health:         'GET   /api/health',
-      register:       'POST  /api/auth/register',
-      login:          'POST  /api/auth/login',
-      me:             'GET   /api/auth/me',
-      conversations:  'GET   /api/messages/conversations',
-      usersDirectory: 'GET   /api/messages/users',
-      messageHistory: 'GET   /api/messages/:partnerId',
-    },
+// Serve frontend static build if available (for single-server deployments like Render/VPS)
+const clientDistPath = path.join(__dirname, '..', '..', 'client', 'dist');
+if (fs.existsSync(clientDistPath)) {
+  app.use(express.static(clientDistPath));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api')) return next();
+    res.sendFile(path.join(clientDistPath, 'index.html'));
   });
-});
+} else {
+  // Root info route when running purely as API server
+  app.get('/', (_req, res) => {
+    res.json({
+      name:    'Beacon API',
+      status:  'online',
+      version: '1.0.0',
+      db:      mongoose.connection.readyState === 1 ? 'connected' : 'in-memory active',
+      routes: {
+        health:         'GET   /api/health',
+        register:       'POST  /api/auth/register',
+        login:          'POST  /api/auth/login',
+        forgotPassword: 'POST  /api/auth/forgot-password',
+        me:             'GET   /api/auth/me',
+        conversations:  'GET   /api/messages/conversations',
+        usersDirectory: 'GET   /api/messages/users',
+        messageHistory: 'GET   /api/messages/:partnerId',
+      },
+    });
+  });
+}
 
-// 404 handler
-app.use((req, res) => {
+// 404 handler for API routes
+app.use('/api/*', (req, res) => {
   res.status(404).json({
     success: false,
     error: `Cannot ${req.method} ${req.originalUrl}`,

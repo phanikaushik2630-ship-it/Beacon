@@ -562,7 +562,7 @@ export default function ChatPage() {
   const isPartnerTyping = activePartnerId ? typingUsers.has(activePartnerId) : false;
 
   return (
-    <div className="h-screen w-screen flex overflow-hidden bg-[#111b21] text-[#e9edef] select-none font-sans">
+    <div className="h-[100dvh] w-screen flex overflow-hidden bg-[#111b21] text-[#e9edef] select-none font-sans">
       {/* ═══════════════════════════════════════════════════
           LEFT SIDEBAR (WhatsApp Chats List)
       ═══════════════════════════════════════════════════ */}
@@ -753,6 +753,20 @@ export default function ChatPage() {
               );
             })
           )}
+        </div>
+
+        {/* WhatsApp Mobile Floating Action Button (FAB) */}
+        <div className="md:hidden absolute bottom-5 right-5 z-30 pointer-events-auto">
+          <button
+            onClick={() => {
+              setNewChatSearch('');
+              setShowNewChatModal(true);
+            }}
+            className="w-14 h-14 rounded-full bg-[#00a884] hover:bg-[#02906f] active:scale-95 text-white flex items-center justify-center shadow-2xl transition-all ring-4 ring-[#111b21]"
+            title="Start New Chat"
+          >
+            <MessageSquarePlus className="w-6 h-6" />
+          </button>
         </div>
       </aside>
 
