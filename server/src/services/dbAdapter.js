@@ -19,6 +19,19 @@ export const dbUser = {
     return memoryStore.findUserByEmail(email, true);
   },
 
+  async findByUsername(username) {
+    if (isMongoConnected()) {
+      return User.findOne({ username: new RegExp(`^${username.trim()}$`, 'i') }).select('+password');
+    }
+    const cleanUsername = username.toLowerCase().trim();
+    for (const u of memoryStore.users.values()) {
+      if (u.username.toLowerCase() === cleanUsername) {
+        return memoryStore.formatUser(u, true);
+      }
+    }
+    return null;
+  },
+
   async findOne(filter) {
     if (isMongoConnected()) {
       return User.findOne(filter);

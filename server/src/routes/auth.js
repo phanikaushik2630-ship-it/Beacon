@@ -104,28 +104,36 @@ router.post('/register', async (req, res) => {
 ────────────────────────────────────────────────── */
 router.post('/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const rawIdentifier = req.body.email || req.body.username || req.body.identifier || '';
+    const identifier = typeof rawIdentifier === 'string' ? rawIdentifier.trim() : '';
+    const password = req.body.password;
 
     // ── Validation ──
-    if (!email || !password) {
+    if (!identifier || !password) {
       return res.status(400).json({
         success: false,
-        error: 'Email and password are required.',
-      });
-    }
-    if (!isValidEmail(email)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Please provide a valid email address.',
+        error: 'Please enter your email/username and password.',
       });
     }
 
-    // ── Find user ──
-    let user = await dbUser.findByEmail(email);
+    // ── Find user by email OR username ──
+    let user = null;
+    if (identifier.includes('@')) {
+      user = await dbUser.findByEmail(identifier.toLowerCase());
+    } else {
+      user = await dbUser.findByUsername(identifier.toLowerCase());
+    }
+
+    if (!user) {
+      user =
+        (await dbUser.findByEmail(identifier.toLowerCase())) ||
+        (await dbUser.findByUsername(identifier.toLowerCase()));
+    }
+
     if (!user) {
       return res.status(401).json({
         success: false,
-        error: 'Invalid email or password. If you do not have an account, please register first.',
+        error: 'No account found with this email or username. Click "Forgot Password?" or register a new account.',
       });
     }
 

@@ -159,15 +159,15 @@ export default function Login() {
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Email Field */}
+            {/* Email / Username Field */}
             <div>
               <label className="block text-xs font-bold text-pink-200/90 mb-1.5 uppercase tracking-wider font-syne">
-                Email Address
+                Email or Username
               </label>
               <div className="relative flex items-center">
                 <Mail className="absolute left-4 w-4 h-4 text-pink-400 pointer-events-none" />
                 <input
-                  type="email"
+                  type="text"
                   required
                   autoFocus
                   value={email}
@@ -175,7 +175,7 @@ export default function Login() {
                     setEmail(e.target.value);
                     if (localError) setLocalError('');
                   }}
-                  placeholder="alex@example.com"
+                  placeholder="alex@example.com or alex_stone"
                   className="join-input w-full rounded-xl pl-11 pr-4 py-3 text-sm text-white placeholder-pink-300/30 font-sans focus:outline-none"
                 />
               </div>
